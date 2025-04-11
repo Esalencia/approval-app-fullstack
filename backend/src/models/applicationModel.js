@@ -10,6 +10,7 @@ export const getApplicationByIdService = async (id) => {
 };
 
 export const createApplicationService = async (
+    userId,
     standNumber,
     postalAddress,
     estimatedCost,
@@ -22,39 +23,102 @@ export const createApplicationService = async (
     ownerName,
     email,
     contact,
-    purposeOfBuilding
+    purposeOfBuilding,
+    status = 'draft'
 ) => {
-    const query = `
-        INSERT INTO applications (
-            standNumber, postalAddress, estimatedCost, constructionType,
-            projectDescription, startDate, completionDate, buildingContractor,
-            architect, ownerName, email, contact, purposeOfBuilding
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING *;
-    `;
-
-    const values = [
-        standNumber,
-        postalAddress,
-        estimatedCost,
-        constructionType,
-        projectDescription,
-        startDate,
-        completionDate,
-        buildingContractor,
-        architect,
-        ownerName,
-        email,
-        contact,
-        purposeOfBuilding
-    ];
+    const client = await pool.connect();
 
     try {
-        const result = await pool.query(query, values);
-        return result.rows[0]; // Return the newly created application
-    } catch (err) {
-        throw new Error(`Database error: ${err.message}`);
+        await client.query('BEGIN');
+
+        // 1. Insert the application
+        const applicationQuery = `
+            INSERT INTO applications (
+                user_id, status, standNumber, postalAddress, estimatedCost, constructionType,
+                projectDescription, startDate, completionDate, buildingContractor,
+                architect, ownerName, email, contact, purposeOfBuilding
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            RETURNING *;
+        `;
+
+        const applicationValues = [
+            userId,
+            status,
+            standNumber,
+            postalAddress,
+            estimatedCost,
+            constructionType,
+            projectDescription,
+            startDate,
+            completionDate,
+            buildingContractor,
+            architect,
+            ownerName,
+            email,
+            contact,
+            purposeOfBuilding
+        ];
+
+        const applicationResult = await client.query(applicationQuery, applicationValues);
+        const newApplication = applicationResult.rows[0];
+
+        // 2. If status is 'submitted', initialize the first stage
+        if (status === 'submitted') {
+            // Get the first stage (Application Submission)
+            const stageQuery = `
+                SELECT id FROM application_stages
+                WHERE order_number = 1
+                LIMIT 1;
+            `;
+
+            const stageResult = await client.query(stageQuery);
+            if (stageResult.rows.length > 0) {
+                const stageId = stageResult.rows[0].id;
+
+                // Update application with current stage
+                await client.query(
+                    `UPDATE applications SET current_stage_id = $1 WHERE id = $2`,
+                    [stageId, newApplication.id]
+                );
+
+                // Create application progress entry for first stage
+                await client.query(
+                    `INSERT INTO application_progress
+                     (application_id, stage_id, status)
+                     VALUES ($1, $2, 'in_progress')`,
+                    [newApplication.id, stageId]
+                );
+
+                // Initialize requirement completion records
+                const requirementsQuery = `
+                    SELECT id FROM stage_requirements
+                    WHERE stage_id = $1;
+                `;
+
+                const requirementsResult = await client.query(requirementsQuery, [stageId]);
+                for (const req of requirementsResult.rows) {
+                    await client.query(
+                        `INSERT INTO requirement_completion
+                         (application_id, requirement_id, status)
+                         VALUES ($1, $2, 'pending')`,
+                        [newApplication.id, req.id]
+                    );
+                }
+
+                // Update the application object with current stage
+                newApplication.current_stage_id = stageId;
+            }
+        }
+
+        await client.query('COMMIT');
+        return newApplication;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
     }
+
 };
 // export const updateApplicationService = async (id, standNumber, postalAddress, estimatedCost, constructionType, projectDescription, startDate, completionDate, buildingContractor, architect, ownerName, email, contact, purposeOfBuilding) => {
 //     const result = await pool.query("UPDATE applications SET name=$1, eamil=$2 WHERE id=$3 RETURNING *",

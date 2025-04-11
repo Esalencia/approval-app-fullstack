@@ -1,5 +1,5 @@
 import { createApplicationService, deleteApplicationService, getAllApplicationsService, getApplicationByIdService } from "../models/applicationModel.js";
-// import { createUserService, deleteUserService, getAllUsersService, getUserByIdService, updateUserService } from "../models/userModels.js";
+
 
 //Standardized response function
 const handleResponse = (res, status, message, data = null) =>{
@@ -25,7 +25,8 @@ export const createApplication = async (req, res, next) => {
         ownerName,
         email,
         contact,
-        purposeOfBuilding
+        purposeOfBuilding,
+        status
     } = req.body;
 
     try {
@@ -34,8 +35,16 @@ export const createApplication = async (req, res, next) => {
             throw new Error("Missing required fields");
         }
 
+        // Get user ID from authenticated user
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return handleResponse(res, 401, "Authentication required");
+        }
+
         // Call the service to create the application
         const newApplication = await createApplicationService(
+            userId,
             standNumber,
             postalAddress,
             estimatedCost,
@@ -48,7 +57,8 @@ export const createApplication = async (req, res, next) => {
             ownerName,
             email,
             contact,
-            purposeOfBuilding
+            purposeOfBuilding,
+            status || 'draft' // Default to draft if not specified
         );
 
         // Send a success response
