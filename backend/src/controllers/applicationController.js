@@ -11,53 +11,93 @@ const handleResponse = (res, status, message, data = null) =>{
 };
 
 export const createApplication = async (req, res, next) => {
+    // Log the entire request body for debugging
+    console.log('Received application data:', req.body);
+
     // Destructure the request body
     const {
-        standNumber,
-        postalAddress,
-        estimatedCost,
-        constructionType,
-        projectDescription,
-        startDate,
-        completionDate,
-        buildingContractor,
+        stand_number,
+        postal_address,
+        estimated_cost,
+        construction_type,
+        project_description,
+        start_date,
+        completion_date,
+        building_contractor,
         architect,
-        ownerName,
-        email,
-        contact,
-        purposeOfBuilding,
         status
     } = req.body;
 
     try {
         // Validate required fields
-        if (!standNumber || !postalAddress || !estimatedCost || !constructionType || !projectDescription || !startDate || !completionDate || !buildingContractor || !architect || !ownerName || !email || !contact) {
-            throw new Error("Missing required fields");
+        const missingFields = [];
+        if (!stand_number) missingFields.push('Stand Number');
+        if (!postal_address) missingFields.push('Postal Address');
+        if (!estimated_cost) missingFields.push('Estimated Cost');
+        if (!construction_type) missingFields.push('Construction Type');
+        if (!project_description) missingFields.push('Project Description');
+        if (!start_date) missingFields.push('Start Date');
+        if (!completion_date) missingFields.push('Completion Date');
+        if (!building_contractor) missingFields.push('Building Contractor');
+        if (!architect) missingFields.push('Architect');
+
+        if (missingFields.length > 0) {
+            throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
         }
 
-        // Get user ID from authenticated user
-        const userId = req.user?.id;
+        // Get user ID and details from authenticated user
+        const user_id = req.user?.id;
 
-        if (!userId) {
+        // Get owner_name from request body or construct from user data
+        let owner_name = req.body.owner_name;
+        if (!owner_name && req.user) {
+            const firstName = req.user.firstName || req.user.first_name || '';
+            const lastName = req.user.lastName || req.user.last_name || '';
+            owner_name = `${firstName} ${lastName}`.trim();
+            // If still empty after trimming, set to 'Not provided'
+            if (!owner_name) {
+                owner_name = 'Not provided';
+            }
+        }
+
+        // Get email from request body or user data
+        const email = req.body.email || req.user?.email;
+
+        // Get contact_number from request body or user data
+        const contact_number = req.body.contact_number || req.user?.contactNumber || req.user?.contact_number || 'Not provided';
+
+        if (!user_id) {
             return handleResponse(res, 401, "Authentication required");
+        }
+
+        // Validate user information
+        if (!owner_name || owner_name === ' ') {
+            throw new Error('Owner name is required');
+        }
+
+        if (!email) {
+            throw new Error('Email is required');
+        }
+
+        if (!contact_number) {
+            throw new Error('Contact number is required');
         }
 
         // Call the service to create the application
         const newApplication = await createApplicationService(
-            userId,
-            standNumber,
-            postalAddress,
-            estimatedCost,
-            constructionType,
-            projectDescription,
-            startDate,
-            completionDate,
-            buildingContractor,
+            user_id,
+            stand_number,
+            postal_address,
+            estimated_cost,
+            construction_type,
+            project_description,
+            start_date,
+            completion_date,
+            building_contractor,
             architect,
-            ownerName,
+            owner_name,
             email,
-            contact,
-            purposeOfBuilding,
+            contact_number,
             status || 'draft' // Default to draft if not specified
         );
 

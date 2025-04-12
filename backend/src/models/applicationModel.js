@@ -10,20 +10,19 @@ export const getApplicationByIdService = async (id) => {
 };
 
 export const createApplicationService = async (
-    userId,
-    standNumber,
-    postalAddress,
-    estimatedCost,
-    constructionType,
-    projectDescription,
-    startDate,
-    completionDate,
-    buildingContractor,
+    user_id,
+    stand_number,
+    postal_address,
+    estimated_cost,
+    construction_type,
+    project_description,
+    start_date,
+    completion_date,
+    building_contractor,
     architect,
-    ownerName,
+    owner_name,
     email,
-    contact,
-    purposeOfBuilding,
+    contact_number,
     status = 'draft'
 ) => {
     const client = await pool.connect();
@@ -34,29 +33,28 @@ export const createApplicationService = async (
         // 1. Insert the application
         const applicationQuery = `
             INSERT INTO applications (
-                user_id, status, standNumber, postalAddress, estimatedCost, constructionType,
-                projectDescription, startDate, completionDate, buildingContractor,
-                architect, ownerName, email, contact, purposeOfBuilding
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                user_id, status, stand_number, postal_address, estimated_cost, construction_type,
+                project_description, start_date, completion_date, building_contractor,
+                architect, owner_name, email, contact_number
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *;
         `;
 
         const applicationValues = [
-            userId,
+            user_id,
             status,
-            standNumber,
-            postalAddress,
-            estimatedCost,
-            constructionType,
-            projectDescription,
-            startDate,
-            completionDate,
-            buildingContractor,
+            stand_number,
+            postal_address,
+            estimated_cost,
+            construction_type,
+            project_description,
+            start_date,
+            completion_date,
+            building_contractor,
             architect,
-            ownerName,
+            owner_name,
             email,
-            contact,
-            purposeOfBuilding
+            contact_number
         ];
 
         const applicationResult = await client.query(applicationQuery, applicationValues);

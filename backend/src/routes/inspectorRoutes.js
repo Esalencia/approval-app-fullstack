@@ -1,12 +1,20 @@
 import express from "express";
-import {getAllInspectors,createInspector, getInspector, deleteInspector, updateInspector  } from "../controllers/inspectorController.js";
-//import validateRequest from "../middlewares/inputValidatorMiddleware.js";
+import {getAllInspectors, createInspector, getInspector, deleteInspector, updateInspector} from "../controllers/inspectorController.js";
+import { protect } from "../controllers/authController.js";
+import roleMiddleware from "../middlewares/roleMiddleware.js";
+
 const router = express.Router();
 
-router.post("/", createInspector);
+// Protect all routes
+router.use(protect);
+
+// Admin-only routes
+router.post("/", roleMiddleware.isAdmin, createInspector);
+router.put("/inspector/:id", roleMiddleware.isAdmin, updateInspector);
+router.delete("/:id", roleMiddleware.isAdmin, deleteInspector);
+
+// Public routes (accessible to all authenticated users)
 router.get("/", getAllInspectors);
 router.get("/:id", getInspector);
-router.put("/inspector/:id", updateInspector);
-router.delete("/:id", deleteInspector);
 
 export default router;

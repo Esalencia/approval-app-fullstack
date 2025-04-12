@@ -82,108 +82,18 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log(`Login attempt for email: ${email}`);
 
-        // Special case for admin@zimbuilds.com
-        if (email.toLowerCase() === 'admin@zimbuilds.com') {
-            console.log('Admin login attempt detected');
-
-            // Check if admin exists
-            let adminUser = await loginUserService(email);
-
-            // If admin doesn't exist, create it
-            if (!adminUser) {
-                console.log('Admin user not found, creating admin account');
-                // Hash password
-                const salt = await bcrypt.genSalt(10);
-                const passwordHash = await bcrypt.hash(password, salt);
-
-                // Create admin user
-                adminUser = await registerUserService(
-                    'admin@zimbuilds.com',
-                    passwordHash,
-                    'Admin',
-                    'User',
-                    '123456789',
-                    'Admin Office',
-                    'ADMIN123',
-                    'admin' // Set role to admin
-                );
-                console.log('Admin user created successfully');
-            }
-
-            // For admin, if it's the default admin email, we'll be more lenient with password
-            // This is just for development/testing - in production you'd want proper security
-            let isPasswordValid = false;
-            try {
-                isPasswordValid = await bcrypt.compare(password, adminUser.password_hash);
-            } catch (error) {
-                console.error('Password comparison error:', error);
-            }
-
-            // If password is invalid but it's the admin email with password 'admin', accept it
-            if (!isPasswordValid && password === 'admin') {
-                console.log('Using default admin password');
-                // Update admin password to 'admin'
-                const salt = await bcrypt.genSalt(10);
-                const passwordHash = await bcrypt.hash('admin', salt);
-                await updatePasswordService(adminUser.id, passwordHash);
-                isPasswordValid = true;
-            }
-
-            if (!isPasswordValid) {
-                console.log('Admin password invalid');
-                return res.status(401).json({ message: "Invalid credentials" });
-            }
-
-            // Create token for admin
-            const token = jwt.sign(
-                { id: adminUser.id, role: 'admin' },
-                JWT_SECRET,
-                { expiresIn: JWT_EXPIRES_IN }
-            );
-
-            // Format admin data
-            const userData = {
-                id: adminUser.id,
-                email: adminUser.email,
-                role: 'admin',
-                firstName: adminUser.first_name || 'Admin',
-                lastName: adminUser.last_name || 'User',
-                contactNumber: adminUser.contact_number || '123456789',
-                physicalAddress: adminUser.physical_address || 'Admin Office',
-                nationalIdNumber: adminUser.national_id_number || 'ADMIN123',
-                createdAt: adminUser.created_at,
-                updatedAt: adminUser.updated_at
-            };
-
-            console.log('Admin login successful');
-            return res.status(200).json({
-                message: "Login successful",
-                token,
-                user: userData,
-                role: 'admin'
-            });
-        }
-
-        // Normal user login flow
-        console.log('Regular user login flow');
+        // Check if user exists
         const user = await loginUserService(email);
         if (!user) {
-            console.log('User not found');
             return res.status(401).json({ message: "Invalid credentials" });
         }
-
-        console.log(`User found with role: ${user.role}`);
 
         // Verify password
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
-            console.log('Password invalid');
             return res.status(401).json({ message: "Invalid credentials" });
         }
-
-        console.log('Password valid');
 
         // Create JWT token with user role for role-based access control
         const token = jwt.sign(

@@ -11,56 +11,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Helper function to redirect based on user role
-  const redirectBasedOnRole = (userRole: string) => {
-    console.log('Redirecting based on role:', userRole);
-
-    // Special case for admin@zimbuilds.com
-    if (email.toLowerCase() === 'admin@zimbuilds.com') {
-      console.log('Admin email detected, redirecting to admin dashboard');
-      router.replace('/admin');
-      return;
-    }
-
-    // Normalize the role to lowercase for case-insensitive comparison
-    const normalizedRole = userRole?.toLowerCase() || '';
-
-    // Admin and superadmin go to admin dashboard
-    if (normalizedRole === 'admin' || normalizedRole === 'superadmin') {
-      console.log('Redirecting to admin dashboard');
-      router.replace('/admin');
-    }
-    // Inspectors go to inspector dashboard
-    else if (normalizedRole === 'inspector') {
-      console.log('Redirecting to inspector dashboard');
-      router.replace('/inspector');
-    }
-    // All others (applicants) go to applicant dashboard
-    else {
-      console.log('Redirecting to applicant dashboard');
-      router.replace('/applicant');
-    }
-  };
-
-  // Get the callback URL from the query parameters if it exists
-  const getCallbackUrl = () => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const callbackUrl = urlParams.get('callbackUrl');
-      console.log('Callback URL from query params:', callbackUrl); // Debug log
-      return callbackUrl;
-    }
-    return null;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      console.log('Attempting login with:', { email, password: '***' });
-
       const response = await fetch('http://localhost:5001/api/auth/login', {
         method: 'POST',
         headers: {
@@ -70,51 +26,33 @@ export default function LoginPage() {
       });
 
       const data = await response.json();
-      console.log('Login response:', { status: response.status, data });
 
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Extract user role from response
-      const userRole = data.role || data.user?.role;
-      console.log('User role from response:', userRole);
-
-      if (!data.token) {
-        throw new Error('No token received from server');
-      }
-
       // Store token and user role in both localStorage and cookies
       localStorage.setItem('token', data.token);
-      localStorage.setItem('userRole', userRole);
+      localStorage.setItem('userRole', data.role || data.user?.role);
 
       // Set cookies for middleware to access
-      document.cookie = `token=${data.token}; path=/; max-age=86400;`; // 24 hours
-      document.cookie = `userRole=${userRole}; path=/; max-age=86400;`;
+      document.cookie = `token=${data.token}; path=/;`;
+      document.cookie = `userRole=${data.role || data.user?.role}; path=/;`;
 
-      // Check if there's a callback URL to redirect to
-      const callbackUrl = getCallbackUrl();
+      // Redirect to appropriate dashboard based on role
+      const userRole = data.role || data.user?.role;
 
-      if (callbackUrl) {
-        // Redirect to the original URL the user was trying to access
-        console.log('Redirecting to callback URL:', callbackUrl); // Debug log
-
-        try {
-          // Decode the URL and ensure it's a valid URL
-          const decodedUrl = decodeURIComponent(callbackUrl);
-          console.log('Decoded URL:', decodedUrl); // Debug log
-
-          // Use replace instead of push for a cleaner navigation experience
-          router.replace(decodedUrl);
-        } catch (error) {
-          console.error('Error redirecting to callback URL:', error);
-          // Fall back to role-based redirection if there's an error with the callback URL
-          redirectBasedOnRole(data.role || data.user?.role);
-        }
-      } else {
-        // Default role-based redirection if no callback URL
-        const userRole = data.role || data.user?.role;
-        redirectBasedOnRole(userRole);
+      // Admin and superadmin go to admin dashboard
+      if (userRole === 'admin' || userRole === 'superadmin' || email === 'admin@zimbuilds.com') {
+        router.push('/admin');
+      }
+      // Inspectors go to inspector dashboard
+      else if (userRole === 'inspector') {
+        router.push('/inspector');
+      }
+      // All others (applicants) go to applicant dashboard
+      else {
+        router.push('/applicant');
       }
 
     } catch (err: any) {

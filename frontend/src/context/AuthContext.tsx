@@ -33,56 +33,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const loadUser = async () => {
       try {
         const token = localStorage.getItem('token');
-        const storedRole = localStorage.getItem('userRole');
-
-        console.log('Loading user with token:', token ? 'exists' : 'none');
-        console.log('Stored role:', storedRole);
-
         if (token) {
           // Verify token and fetch user data
           const response = await fetch('http://localhost:5001/api/auth/me', {
             headers: { Authorization: `Bearer ${token}` },
           });
 
-          console.log('Auth check response status:', response.status);
-
           if (response.ok) {
             const userData = await response.json();
-            console.log('User data loaded:', userData);
             setUser(userData);
           } else {
-            console.warn('Token validation failed, clearing auth data');
             // If token is invalid, clear auth data
-            clearAuthData();
+            localStorage.removeItem('token');
+            localStorage.removeItem('userRole');
+            document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+            document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
           }
-        } else if (storedRole) {
-          // If we have a role but no valid user data, create a minimal user object
-          // This helps with role-based access control when the /me endpoint fails
-          console.log('Creating minimal user object from stored role');
-          setUser({
-            id: 'temp-id',
-            email: localStorage.getItem('userEmail') || 'user@example.com',
-            role: storedRole as any,
-            firstName: '',
-            lastName: ''
-          });
         }
       } catch (error) {
         console.error('Failed to load user', error);
-        clearAuthData();
       } finally {
         setLoading(false);
       }
-    };
-
-    const clearAuthData = () => {
-      localStorage.removeItem('token');
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('userEmail');
-      document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-      document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-      document.cookie = 'userEmail=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-      setUser(null);
     };
 
     loadUser();
@@ -106,46 +78,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Extract user role from response
-      const userRole = data.role || data.user?.role;
-      console.log('Login successful, user role:', userRole);
-
       // Store token and role in both localStorage and cookies
       localStorage.setItem('token', data.token);
-      localStorage.setItem('userRole', userRole);
+      localStorage.setItem('userRole', data.role || data.user?.role);
       localStorage.setItem('userEmail', email);
 
-      // Set cookies for middleware to access with expiration
-      document.cookie = `token=${data.token}; path=/; max-age=86400;`; // 24 hours
-      document.cookie = `userRole=${userRole}; path=/; max-age=86400;`;
-      document.cookie = `userEmail=${email}; path=/; max-age=86400;`;
+      // Set cookies for middleware to access
+      document.cookie = `token=${data.token}; path=/;`;
+      document.cookie = `userRole=${data.role || data.user?.role}; path=/;`;
+      document.cookie = `userEmail=${email}; path=/;`;
 
       setUser(data.user);
 
-      // Check if there's a callback URL in the query parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const callbackUrl = urlParams.get('callbackUrl');
+      // Redirect based on role
+      const userRole = data.role || data.user?.role;
 
-      // Redirect based on callback URL or role
-      if (callbackUrl) {
-        // Decode the callback URL and redirect
-        router.push(decodeURI(callbackUrl));
-      } else {
-        // Default role-based redirection
-        const userRole = data.role || data.user?.role;
-
-        // Admin and superadmin go to admin dashboard
-        if (userRole === 'admin' || userRole === 'superadmin' || email === 'admin@zimbuilds.com') {
-          router.push('/admin');
-        }
-        // Inspectors go to inspector dashboard
-        else if (userRole === 'inspector') {
-          router.push('/inspector');
-        }
-        // All others (applicants) go to applicant dashboard
-        else {
-          router.push('/applicant');
-        }
+      // Admin and superadmin go to admin dashboard
+      if (userRole === 'admin' || userRole === 'superadmin' || email === 'admin@zimbuilds.com') {
+        router.push('/admin');
+      }
+      // Inspectors go to inspector dashboard
+      else if (userRole === 'inspector') {
+        router.push('/inspector');
+      }
+      // All others (applicants) go to applicant dashboard
+      else {
+        router.push('/applicant');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -156,82 +114,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    console.log('Logging out user');
-
     // Clear localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('userRole');
-    localStorage.removeItem('userEmail');
 
     // Clear cookies
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-    document.cookie = 'userEmail=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 
     setUser(null);
     router.push('/auth/login');
   };
 
-  // Role check helper functions with case-insensitive comparison
-  const isAdmin = () => {
-    const role = user?.role?.toLowerCase();
-    return role === 'admin' || role === 'superadmin';
-  };
-
-  const isInspector = () => {
-    return user?.role?.toLowerCase() === 'inspector';
-  };
-
-  const isApplicant = () => {
-    return user?.role?.toLowerCase() === 'applicant';
-  };
+  // Role check helper functions
+  const isAdmin = () => user?.role === 'admin';
+  const isInspector = () => user?.role === 'inspector';
+  const isApplicant = () => user?.role === 'applicant';
 
   // Permission check based on role
-  const hasPermission = (permission: string | string[]) => {
+  const hasPermission = (permission: string) => {
     if (!user) return false;
 
-    // Define role permissions with a hierarchical structure
     const rolePermissions = {
-      superadmin: [
-        // Navigation permissions
-        'access_admin_dashboard', 'access_inspector_dashboard', 'access_applicant_dashboard',
-        // Admin permissions
-        'manage_users', 'manage_all', 'view_all', 'add_inspector', 'view_inspectors',
-        'view_applicants', 'view_applications', 'manage_payments', 'view_reports',
-        // Inspector permissions
-        'manage_inspections', 'view_assigned', 'schedule_inspections',
-        // Applicant permissions
-        'submit_application', 'view_own', 'upload_documents', 'make_payments',
-        'schedule_inspection', 'view_certificate'
-      ],
-      admin: [
-        // Navigation permissions
-        'access_admin_dashboard',
-        // Admin permissions
-        'manage_users', 'manage_all', 'view_all', 'add_inspector', 'view_inspectors',
-        'view_applicants', 'view_applications', 'manage_payments', 'view_reports'
-      ],
-      inspector: [
-        // Navigation permissions
-        'access_inspector_dashboard',
-        // Inspector permissions
-        'manage_inspections', 'view_assigned', 'schedule_inspections'
-      ],
-      applicant: [
-        // Navigation permissions
-        'access_applicant_dashboard',
-        // Applicant permissions
-        'submit_application', 'view_own', 'upload_documents', 'make_payments',
-        'schedule_inspection', 'view_certificate'
-      ]
+      admin: ['manage_users', 'manage_all', 'view_all', 'manage_inspections', 'view_assigned', 'submit_application', 'view_own'],
+      inspector: ['manage_inspections', 'view_assigned'],
+      applicant: ['submit_application', 'view_own']
     };
 
-    // If checking for multiple permissions, all must be present
-    if (Array.isArray(permission)) {
-      return permission.every(perm => rolePermissions[user.role]?.includes(perm) || false);
-    }
-
-    // Single permission check
     return rolePermissions[user.role]?.includes(permission) || false;
   };
 

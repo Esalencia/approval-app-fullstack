@@ -9,13 +9,13 @@ import DashboardLayout from '@/components/Dashboardlayout';
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   return (
-    <DashboardLayout userRole="admin">
+    <DashboardLayout userRole="admin"> {/* Wrap with layout and specify role */}
       <div className="p-6 bg-gray-100 min-h-screen">
-          {/* Header Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-[#224057]">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-2">Welcome back, {user?.firstName || 'Admin'}! Here's your application overview</p>
-          </div>
+        {/* Header Section */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-[#224057]">Admin Dashboard</h1>
+          <p className="text-gray-600 mt-2">Welcome back! Here's your application overview</p>
+        </div>
 
         {/* Stats Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

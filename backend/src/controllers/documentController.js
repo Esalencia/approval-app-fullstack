@@ -3,7 +3,7 @@ import DocumentModel from '../models/documentModel.js';
 
 export const uploadDocument = async (req, res, next) => {
   try {
-    if (!req.file) {
+    if (!req.file) { 
       return next(new ErrorResponse('No file uploaded', 400));
     }
 

@@ -2,103 +2,79 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import DashboardLayout from '@/components/Dashboardlayout';
 import { useAuth } from '@/context/AuthContext';
 
-// Extended User type to match what's returned from the backend
-type ExtendedUser = {
-  id: string;
-  email: string;
-  role: string;
-  firstName: string;
-  lastName: string;
-  contactNumber?: string;
-  physicalAddress?: string;
-  nationalIdNumber?: string;
-};
-
 const PlanApprovalForm = () => {
-  // Get user and authentication state from context
-  const { user: authUser, loading: authLoading } = useAuth();
-  const user = authUser as ExtendedUser | null;
+  const router = useRouter();
+  const { user } = useAuth();
 
-  // Log authentication state when component mounts
-  useEffect(() => {
-    console.log('Auth state:', { user, authLoading });
-    console.log('Token in localStorage:', localStorage.getItem('token'));
-
-    // Populate user information fields when user data is available
-    if (user) {
-      console.log('User data for form:', user);
-
-      // Safely construct owner_name from firstName and lastName
-      const firstName = user.firstName || '';
-      const lastName = user.lastName || '';
-      const owner_name = `${firstName} ${lastName}`.trim();
-
-      setFormData(prevData => ({
-        ...prevData,
-        owner_name: owner_name || '',
-        email: user.email || '',
-        contact_number: user.contactNumber || '',
-      }));
-
-      console.log('Form data after user info update:', {
-        owner_name,
-        email: user.email,
-        contact_number: user.contactNumber
-      });
-    }
-  }, [user, authLoading]);
-
+  // Initialize form data
   const [formData, setFormData] = useState({
-    stand_number: '',
-    postal_address: '',
-    estimated_cost: '',
-    construction_type: '',
-    project_description: '',
-    start_date: '',
-    completion_date: '',
-    building_contractor: '',
+    standNumber: '',
+    postalAddress: '',
+    estimatedCost: '',
+    constructionType: '',
+    projectDescription: '',
+    startDate: '',
+    completionDate: '',
+    buildingContractor: '',
     architect: '',
-    owner_name: '',
+    ownerName: '',
     email: '',
-    contact_number: '',
+    contact: '',
+    purposeOfBuilding: '',
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  // Pre-fill form with user data if available
+  useEffect(() => {
+    if (user) {
+      setFormData(prevData => ({
+        ...prevData,
+        ownerName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : prevData.ownerName,
+        email: user.email || prevData.email,
+      }));
+    }
+  }, [user]);
+
+  // Test authentication
+  const testAuthentication = async () => {
+    try {
+      setTestResult(null);
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        setTestResult('No token found in localStorage');
+        return;
+      }
+
+      setTestResult(`Token found: ${token.substring(0, 10)}...`);
+
+      // Test authentication
+      const response = await axios.get('http://localhost:5001/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      setTestResult(`Authentication successful: ${JSON.stringify(response.data)}`);
+    } catch (error: any) {
+      setTestResult(`Authentication failed: ${error.response?.data?.message || error.message}`);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    console.log(`Field changed: ${name} = ${value}`);
-
-    // Create a new form data object with the updated value
-    const updatedFormData = {
+    setFormData({
       ...formData,
       [name]: value,
-    };
-
-    // Set the updated form data
-    setFormData(updatedFormData);
-
-    // Log the updated form data
-    console.log('Setting formData:', updatedFormData);
-  };
-
-  // Specific handler for construction type to ensure it's being set correctly
-  const handleConstructionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    console.log(`Construction type changed to: ${value}`);
-
-    setFormData(prev => {
-      const updated = {
-        ...prev,
-        construction_type: value
-      };
-      console.log('Updated form with construction type:', updated);
-      return updated;
     });
   };
 
@@ -109,76 +85,20 @@ const PlanApprovalForm = () => {
     setSuccess(false);
 
     try {
-      // Check if all required fields are filled
-      const requiredFields = [
-        { name: 'stand_number', label: 'Stand Number' },
-        { name: 'postal_address', label: 'Postal Address' },
-        { name: 'estimated_cost', label: 'Estimated Cost' },
-        { name: 'construction_type', label: 'Construction Type' },
-        { name: 'project_description', label: 'Project Description' },
-        { name: 'start_date', label: 'Start Date' },
-        { name: 'completion_date', label: 'Completion Date' },
-        { name: 'building_contractor', label: 'Building Contractor' },
-        { name: 'architect', label: 'Architect' },
-        { name: 'contact_number', label: 'Contact Number' },
-        { name: 'owner_name', label: 'Owner Name' },
-        { name: 'email', label: 'Email' },
-      ];
-
-      const missingFields = requiredFields
-        .filter(field => !formData[field.name as keyof typeof formData])
-        .map(field => field.label);
-
-      if (missingFields.length > 0) {
-        throw new Error(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      }
-
-      // Check if user is authenticated
-      if (!user) {
-        throw new Error('Authentication required. Please log in again.');
-      }
-
       // Get the authentication token from localStorage
       const token = localStorage.getItem('token');
+      console.log('Token available:', token ? 'Yes' : 'No');
+      console.log('Token value:', token);
 
-      // Double check token exists
       if (!token) {
-        throw new Error('Authentication token not found. Please log in again.');
+        throw new Error('Authentication required. Please log in again.');
       }
-
-      console.log('User authenticated:', user.email);
 
       // Log the form data being submitted
       console.log('Submitting form data:', formData);
 
-      // Double-check that construction_type is set
-      if (!formData.construction_type) {
-        throw new Error('Construction Type is required. Please select a value.');
-      }
-
-      // Double-check that contact_number is set
-      if (!formData.contact_number) {
-        throw new Error('Contact Number is required. Please provide a value.');
-      }
-
-      // Create a copy of the form data to ensure all fields are properly set
-      const dataToSubmit = {
-        ...formData,
-        // Ensure construction_type is explicitly set
-        construction_type: formData.construction_type,
-        // Ensure owner_name is properly set
-        owner_name: formData.owner_name || 'Not provided',
-        // Ensure email is properly set
-        email: formData.email || 'Not provided',
-        // Ensure contact_number is properly set
-        contact_number: formData.contact_number || 'Not provided'
-      };
-
-      console.log('Final data to submit:', dataToSubmit);
-
-      // Test the token with a simple request to verify authentication
+      // Test if we can make a simple authenticated request
       try {
-        console.log('Testing authentication with token...');
         const testResponse = await axios.get('http://localhost:5001/api/auth/me', {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -187,14 +107,13 @@ const PlanApprovalForm = () => {
         console.log('Authentication test successful:', testResponse.data);
       } catch (testError: any) {
         console.error('Authentication test failed:', testError.response?.data || testError.message);
-        // Continue with submission anyway to see the specific error
       }
 
       // Include the token in the request headers
-      console.log('Sending application data with token:', token);
+      console.log('Sending request to API...');
       const response = await axios.post(
         'http://localhost:5001/api/applications',
-        dataToSubmit,
+        formData,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -205,37 +124,50 @@ const PlanApprovalForm = () => {
 
       console.log('Form submitted successfully:', response.data);
       setSuccess(true);
-      // Optionally reset the form after successful submission
-      // Reset form but keep user information
+      toast.success('Application submitted successfully!');
+
+      // Redirect to the document verification page after a short delay
+      setTimeout(() => {
+        router.push('/applicant/document-verification');
+      }, 2000);
+
+      // Reset the form after successful submission
       setFormData({
-        stand_number: '',
-        postal_address: '',
-        estimated_cost: '',
-        construction_type: '',
-        project_description: '',
-        start_date: '',
-        completion_date: '',
-        building_contractor: '',
+        standNumber: '',
+        postalAddress: '',
+        estimatedCost: '',
+        constructionType: '',
+        projectDescription: '',
+        startDate: '',
+        completionDate: '',
+        buildingContractor: '',
         architect: '',
-        // Keep user information with proper handling of undefined values
-        owner_name: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
-        email: user?.email || '',
-        contact_number: user?.contactNumber || '',
+        ownerName: '',
+        email: '',
+        contact: '',
+        purposeOfBuilding: '',
       });
     } catch (err: any) {
       console.error('Error submitting form:', err);
 
-      // Check for specific authentication errors
-      if (err.response?.status === 401) {
-        console.error('Authentication error:', err.response.data);
-        setError('Authentication failed. Please log out and log in again.');
-
-        // Log additional debugging information
-        console.log('Auth state at error time:', { user, token: localStorage.getItem('token') });
+      // Log detailed error information
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error('Error response data:', err.response.data);
+        console.error('Error response status:', err.response.status);
+        console.error('Error response headers:', err.response.headers);
+      } else if (err.request) {
+        // The request was made but no response was received
+        console.error('Error request:', err.request);
       } else {
-        const errorMessage = err.response?.data?.message || err.message || 'An error occurred while submitting the form. Please try again.';
-        setError(errorMessage);
+        // Something happened in setting up the request that triggered an Error
+        console.error('Error message:', err.message);
       }
+
+      const errorMessage = err.response?.data?.message || err.message || 'An error occurred while submitting the form. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -274,8 +206,8 @@ const PlanApprovalForm = () => {
                       </label>
                       <input
                         type="text"
-                        name="stand_number"
-                        value={formData.stand_number}
+                        name="standNumber"
+                        value={formData.standNumber}
                         onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
@@ -291,8 +223,8 @@ const PlanApprovalForm = () => {
                       </label>
                       <input
                         type="text"
-                        name="postal_address"
-                        value={formData.postal_address}
+                        name="postalAddress"
+                        value={formData.postalAddress}
                         onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
@@ -308,8 +240,8 @@ const PlanApprovalForm = () => {
                       </label>
                       <input
                         type="text"
-                        name="estimated_cost"
-                        value={formData.estimated_cost}
+                        name="estimatedCost"
+                        value={formData.estimatedCost}
                         onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
@@ -324,9 +256,9 @@ const PlanApprovalForm = () => {
                         Construction Type
                       </label>
                       <select
-                        name="construction_type"
-                        value={formData.construction_type || ''}
-                        onChange={handleConstructionTypeChange}
+                        name="constructionType"
+                        value={formData.constructionType}
+                        onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
                       >
@@ -346,8 +278,8 @@ const PlanApprovalForm = () => {
                         Project Description
                       </label>
                       <textarea
-                        name="project_description"
-                        value={formData.project_description}
+                        name="projectDescription"
+                        value={formData.projectDescription}
                         onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         rows={4}
@@ -364,8 +296,8 @@ const PlanApprovalForm = () => {
                       </label>
                       <input
                         type="date"
-                        name="start_date"
-                        value={formData.start_date}
+                        name="startDate"
+                        value={formData.startDate}
                         onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
@@ -381,8 +313,8 @@ const PlanApprovalForm = () => {
                       </label>
                       <input
                         type="date"
-                        name="completion_date"
-                        value={formData.completion_date}
+                        name="completionDate"
+                        value={formData.completionDate}
                         onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
@@ -398,8 +330,8 @@ const PlanApprovalForm = () => {
                       </label>
                       <input
                         type="text"
-                        name="building_contractor"
-                        value={formData.building_contractor}
+                        name="buildingContractor"
+                        value={formData.buildingContractor}
                         onChange={handleChange}
                         className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
@@ -424,71 +356,71 @@ const PlanApprovalForm = () => {
                     </div>
                   </div>
 
-                  {/* Owner Information (Read-only) */}
-                  <div className="w-full px-4 mt-4">
-                    <h6 className="text-[#224057] text-sm font-bold mb-4">Owner Information (Auto-filled from your account)</h6>
-                  </div>
-
-                  {/* Owner Name (Editable if not provided) */}
-                  <div className="w-full lg:w-4/12 px-4">
+                  {/* Owner Name */}
+                  <div className="w-full lg:w-6/12 px-4">
                     <div className="relative w-full mb-3">
                       <label className="block uppercase text-[#224057] text-xs font-bold mb-2">
-                        Owner Name *
+                        Owner Name
                       </label>
                       <input
                         type="text"
-                        name="owner_name"
-                        value={formData.owner_name}
+                        name="ownerName"
+                        value={formData.ownerName}
                         onChange={handleChange}
-                        className={`border-0 px-3 py-3 ${formData.owner_name ? 'bg-gray-100' : 'bg-white'} text-[#224057] rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150`}
-                        placeholder="Enter your full name"
+                        className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
                       />
-                      {!formData.owner_name && (
-                        <p className="text-red-500 text-xs mt-1">Please provide your full name</p>
-                      )}
                     </div>
                   </div>
 
-                  {/* Email (Editable if not provided) */}
-                  <div className="w-full lg:w-4/12 px-4">
+                  {/* Email */}
+                  <div className="w-full lg:w-6/12 px-4">
                     <div className="relative w-full mb-3">
                       <label className="block uppercase text-[#224057] text-xs font-bold mb-2">
-                        Email *
+                        Email
                       </label>
                       <input
                         type="email"
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
-                        className={`border-0 px-3 py-3 ${formData.email ? 'bg-gray-100' : 'bg-white'} text-[#224057] rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150`}
-                        placeholder="Enter your email address"
+                        className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
                       />
-                      {!formData.email && (
-                        <p className="text-red-500 text-xs mt-1">Please provide your email address</p>
-                      )}
                     </div>
                   </div>
 
-                  {/* Contact Number (Editable if not provided) */}
-                  <div className="w-full lg:w-4/12 px-4">
+                  {/* Contact */}
+                  <div className="w-full lg:w-6/12 px-4">
                     <div className="relative w-full mb-3">
                       <label className="block uppercase text-[#224057] text-xs font-bold mb-2">
-                        Contact Number *
+                        Contact
                       </label>
                       <input
                         type="text"
-                        name="contact_number"
-                        value={formData.contact_number}
+                        name="contact"
+                        value={formData.contact}
                         onChange={handleChange}
-                        className={`border-0 px-3 py-3 ${formData.contact_number ? 'bg-gray-100' : 'bg-white'} text-[#224057] rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150`}
-                        placeholder="Enter your contact number"
+                        className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
                         required
                       />
-                      {!formData.contact_number && (
-                        <p className="text-red-500 text-xs mt-1">Please provide a contact number</p>
-                      )}
+                    </div>
+                  </div>
+
+                  {/* Purpose of Building */}
+                  <div className="w-full px-4">
+                    <div className="relative w-full mb-3">
+                      <label className="block uppercase text-[#224057] text-xs font-bold mb-2">
+                        Purpose of Building
+                      </label>
+                      <textarea
+                        name="purposeOfBuilding"
+                        value={formData.purposeOfBuilding}
+                        onChange={handleChange}
+                        className="border-0 px-3 py-3 placeholder-blueGray-300 text-[#224057] bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
+                        rows={4}
+                        required
+                      />
                     </div>
                   </div>
                 </div>
@@ -506,6 +438,23 @@ const PlanApprovalForm = () => {
                     <p className="text-red-600 font-semibold">{error}</p>
                   </div>
                 )}
+
+                {/* Test Authentication Button */}
+                <div className="mt-6 text-center">
+                  <button
+                    type="button"
+                    onClick={testAuthentication}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
+                  >
+                    Test Authentication
+                  </button>
+
+                  {testResult && (
+                    <div className="mt-4 p-4 bg-gray-100 rounded-md text-left">
+                      <pre className="whitespace-pre-wrap text-sm">{testResult}</pre>
+                    </div>
+                  )}
+                </div>
               </form>
             </div>
           </div>

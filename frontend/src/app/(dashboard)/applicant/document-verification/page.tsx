@@ -1,12 +1,10 @@
 // app/documentVerification/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import DashboardLayout from '@/components/Dashboardlayout';
-import WorkflowProtectedRoute from '@/components/WorkflowProtectedRoute';
-import { useAuth } from '@/context/AuthContext';
 
 interface ComplianceResult {
   compliant: boolean;
@@ -19,46 +17,7 @@ export default function DocumentVerification() {
   const [isLoading, setIsLoading] = useState(false);
   const [complianceResult, setComplianceResult] = useState<ComplianceResult | null>(null);
   const [progress, setProgress] = useState(0);
-  const [applications, setApplications] = useState<any[]>([]);
-  const [selectedApplication, setSelectedApplication] = useState<any>(null);
-  const [loadingApplications, setLoadingApplications] = useState(true);
   const router = useRouter();
-  const { user } = useAuth();
-
-  // Fetch user's applications
-  useEffect(() => {
-    const fetchApplications = async () => {
-      if (!user) return;
-
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5001/api/applications/user', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch applications');
-        }
-
-        const data = await response.json();
-        setApplications(data.applications || []);
-
-        // Set the first application as selected by default
-        if (data.applications && data.applications.length > 0) {
-          setSelectedApplication(data.applications[0]);
-        }
-      } catch (err: any) {
-        console.error('Error fetching applications:', err);
-        toast.error('Failed to load applications');
-      } finally {
-        setLoadingApplications(false);
-      }
-    };
-
-    fetchApplications();
-  }, [user]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -117,32 +76,9 @@ export default function DocumentVerification() {
     }
   };
 
-  // If no application is selected, show a message
-  if (!loadingApplications && applications.length === 0) {
-    return (
-      <DashboardLayout userRole="applicant">
-        <div className="p-6 bg-gray-100 min-h-screen">
-          <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
-            <h1 className="text-2xl font-bold text-[#224057] mb-4">Document Verification</h1>
-            <div className="text-center py-8">
-              <p className="text-gray-600 mb-4">You need to submit an application before you can verify documents.</p>
-              <button
-                onClick={() => router.push('/applicant/application-form')}
-                className="bg-[#224057] text-white px-4 py-2 rounded-lg hover:bg-[#1a344a] transition-colors"
-              >
-                Submit an Application
-              </button>
-            </div>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
-    <WorkflowProtectedRoute applicationId={selectedApplication?.id} requiredStage={2}>
-      <DashboardLayout userRole="applicant">
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <DashboardLayout userRole="applicant">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Architectural Plan Verification</h1>
@@ -217,7 +153,7 @@ export default function DocumentVerification() {
                   <span className="text-yellow-600">⚠ Requires Attention</span>
                 )}
               </h2>
-
+              
               {complianceResult.issues.length > 0 ? (
                 <div className="mt-4 space-y-3">
                   <h3 className="text-sm font-medium text-gray-700">Identified Issues:</h3>
@@ -250,7 +186,6 @@ export default function DocumentVerification() {
         </div>
       </div>
     </div>
-      </DashboardLayout>
-    </WorkflowProtectedRoute>
+    </DashboardLayout>
   );
 }

@@ -8,16 +8,14 @@ import bodyParser from 'body-parser';
 import authRoutes from "./routes/authRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import applicationStageRoutes from "./routes/applicationStageRoutes.js";
-import workflowRoutes from "./routes/workflowRoutes.js";
 import createApplicationTable from "./data/createApplicationTable.js";
 import createApplicationStagesTable from "./data/createApplicationStages.js";
-import createWorkflowTable from "./data/createWorkflowTable.js";
 import createUsers, { createAdminUsers } from "./data/createUsers.js";
-// import documentRoutes from "./routes/documentRoutes.js"
+import documentRoutes from "./routes/documentRoutes.js"
 //import errorHandler from "./middlewares/errorMiddleware.js";
 import inspectorRoutes from "./routes/inspectorRoutes.js"
-import bcrypt from "bcryptjs";
-// import createDocumentsTable from "./data/createDocuments.js";
+// import bcrypt from "bcryptjs";
+import createDocumentsTable from "./data/createDocuments.js";
 //import createInspector  from "./data/createInspector.js";
 
 
@@ -40,8 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/inspectors', inspectorRoutes);
 app.use('/api/applications', applicationRoutes); // More specific path
 app.use('/api/application-stages', applicationStageRoutes);
-app.use('/api/workflow', workflowRoutes); // New workflow routes
-// app.use('/api/documents', documentRoutes)
+app.use('/api/documents', documentRoutes)
 
 
 //error handling middleware
@@ -55,8 +52,8 @@ async function initializeDatabase() {
         // Create tables
         await createUsers();
         await createApplicationTable();
+        await createDocumentsTable();
         await createApplicationStagesTable();
-        await createWorkflowTable();
         // Create admin users (both admin and superadmin)
         await createAdminUsers();
         console.log('Database initialization completed');
